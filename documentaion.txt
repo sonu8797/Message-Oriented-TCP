@@ -1,0 +1,198 @@
+// Group: 37 (20CS10074 & 20CS30028)
+
+DATA STRUCTURES USED : Circular Queue as Send_Message and Received_Message 
+    members :
+        mess : array of pointers to char which store message come from sever or client
+        mess_size : array of integer which store size of message
+        front : integer store index of front of queue
+        rear : integer store index of rear of queue
+        size : integer store size of queue
+
+    Queue functions :
+        createQueue : create queue and return pointer to queue
+        destroyQueue : destroy queue
+        isFull : check if queue is full
+        isEmpty : check if queue is empty
+        enqueue : add message to queue and store the size of message
+        dequeue : return message from queue and return the size of message by reference 
+
+
+GLOBAL VARIABLES :
+
+    Send_Message : pointer to queue which store message to send to server
+    Received_Message : pointer to queue which store message received from server
+    Rq_cond : condition variable for Received_Message queue
+    Sq_cond : condition variable for Send_Message queue
+    Rq_lock : mutex lock for Received_Message queue
+    Sq_lock : mutex lock for Send_Message queue
+    R : thread for receiving message from server or client
+    S : thread for sending message to server or client
+    is_connect : integer to check if connection is established or not
+    my_sockfd : integer to store socket file descriptor
+
+FUNCTIONS :
+
+    my_socket : create socket and create threads for sending and receiving message
+
+        parameters :
+            family : address family
+            type : socket type
+            protocol : protocol
+
+        return type : socket file descriptor
+        description :
+            create socket and create threads for sending and receiving message      
+            initialize condition variables and mutex locks
+            initialize Send_Message and Received_Message queues
+
+
+
+    my_bind : bind socket to address
+
+        parameters :
+            Sockfd : socket file descriptor
+            addr : pointer to sockaddr structure
+            addrlen : length of sockaddr structure
+
+        return type : integer
+        description :
+            bind socket to address
+
+
+
+    my_listen : listen to socket
+    
+        parameters :
+            Sockfd : socket file descriptor
+            clients : number of clients
+
+        return type : integer
+        description :
+            listen to socket
+
+
+
+    my_accept : accept connection from 
+
+        parameters :
+            Sockfd : socket file descriptor
+            addr : pointer to sockaddr structure
+            addrlen : length of sockaddr structure
+
+        return type : socket file descriptor
+        description :
+            accept connection from client and return socket file descriptor
+
+
+    my_connect : connect to server
+    
+        parameters :
+            Sockfd : socket file descriptor
+            addr : pointer to sockaddr structure
+            addrlen : length of sockaddr structure
+
+        return type : integer
+        description :
+            connect to server 
+
+
+
+    my_send : send message to server
+        
+        parameters :
+            Sockfd : socket file descriptor
+            buf : pointer to message
+            len : length of message
+            flags : flags
+
+        return type : integer
+        description :
+            locks the Send_Message queue using mutex lock
+            if queue is full wait until queue is not full
+            take the message and add it to Send_Message queue 
+            signal to thread S to send message to server
+            release the mutex lock from Send_Message queue
+
+
+
+    my_recv : receive message from server
+            
+        parameters :
+            Sockfd : socket file descriptor
+            buf : pointer to message
+            len : length of message
+            flags : flags
+
+        return type : integer
+        description :
+            locks the Received_Message queue using mutex lock
+            if queue is empty wait until queue is not empty
+            take the message from Received_Message queue 
+            signal to thread R to receive message from server
+            release the mutex lock from Received_Message queue
+
+
+
+    my_close : close socket and cancel threads
+        
+        parameters :
+            Sockfd : socket file descriptor
+    
+        return type : integer
+        description :
+            kill threads R and S
+            destroy Send_Message and Received_Message queues
+            close socket
+
+
+    Thread S : send message to server or client
+                        
+        parameters :
+            arg : pointer to socket file descriptor
+
+        return type : void
+        description :
+            locks the Send_Message queue using mutex lock
+            if queue is empty wait until queue is not empty
+            takes a message and size of the message from the Send_Message queue
+            sends a signal to my_send function since it was waiting for the Send_Message queue to be not full
+            releases the mutex lock from Send_Message queue
+            first sends the size of message to the receiver, then sends the message to the receiver 
+            
+
+    Thread R : receive message from server or client
+                                
+        parameters :
+            arg : pointer to socket file descriptor
+
+        return type : void
+        description :
+            Check if connection is established or not
+            if not established then wait until connection is established in while loop
+            After connection is established then
+            Call the recv function to receive message from server or client
+            first recv the size of message, then recv the message from the sender
+
+            locks the Received_Message queue using mutex lock
+            if queue is full wait until queue is not full
+            add the message and size of the message to the Received_Message queue
+            sends a signal to my_recv function since it was waiting for the Received_Message queue to be not empty
+            releases the mutex lock from Received_Message queue
+
+
+
+
+WORKFLOW:
+
+    1. Server and client call my_socket function to create socket and create threads for sending and receiving message
+    2. Server call my_bind function to bind socket to address
+    3. Server call my_listen function to listen to socket
+    4. Server call my_accept function to accept connection from client
+    5. Client call my_connect function to connect to server
+    6. Client call my_send function to send message to server and server call my_recv function to receive message from client
+    7. my_send function of client puts that message in Send_Message queue and sends a signal to thread S to send message to the server
+    8. Thread S of client takes the message from Send_Message queue and sends it to the server
+    9. Thread R of server receives the message from the client and puts that message in Received_Message queue 
+    10. my_recv function of server takes the message from Received_Message queue and returns it to the server
+    11. server and client call my_close function at end of communication
+    12. my_close function kills threads R and S and destroy Send_Message and Received_Message queues and closes the socket
